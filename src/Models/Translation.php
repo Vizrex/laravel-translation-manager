@@ -1,5 +1,6 @@
 <?php namespace Barryvdh\TranslationManager\Models;
 
+use function Couchbase\defaultDecoder;
 use Illuminate\Database\Eloquent\Model;
 use DB;
 
@@ -23,9 +24,9 @@ class Translation extends Model{
     protected $table = 'ltm_translations';
     protected $guarded = array('id', 'created_at', 'updated_at');
 
-    public function scopeOfTranslatedGroup($query, $group)
+    public function scopeOfTranslatedGroup($query, $group , $siteId = null )
     {
-        return $query->where('group', $group)->whereNotNull('value');
+        return $query->where('group', $group)->where('site_id', $siteId)->whereNotNull('value');
     }
 
     public function scopeOrderByGroupKeys($query, $ordered) {

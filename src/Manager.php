@@ -4,6 +4,7 @@ namespace Barryvdh\TranslationManager;
 
 use Barryvdh\TranslationManager\Events\TranslationsExportedEvent;
 use Barryvdh\TranslationManager\Models\Translation;
+use function Couchbase\defaultDecoder;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Filesystem\Filesystem;
@@ -49,7 +50,7 @@ class Manager
         return ( $result && is_array( $result ) ) ? $result : [];
     }
 
-    public function importTranslations( $replace = false, $base = null, $import_group = false)
+    public function importTranslations( $replace = false, $base = null, $siteId = null )
     {
         $counter = 0;
         //allows for vendor lang files to be properly recorded through recursion.
@@ -70,13 +71,11 @@ class Manager
                 continue;
             }
             $vendorName = $this->files->name( $this->files->dirname( $langPath ) );
+
             foreach ( $this->files->allfiles( $langPath ) as $file ) {
+
                 $info  = pathinfo( $file );
                 $group = $info[ 'filename' ];
-                if($import_group){
-                    if($import_group !== $group)
-                        continue;
-                }
 
                 if ( in_array( $group, $this->config[ 'exclude_groups' ] ) ) {
                     continue;
@@ -92,13 +91,15 @@ class Manager
                 if ( !$vendor ) {
                     $translations = \Lang::getLoader()->load( $locale, $group );
                 } else {
+//                    dd($group);
                     $translations = include( $file );
-                    $group        = "vendor/" . $vendorName;
+//                    $group        = "vendor/" . $vendorName;
                 }
 
                 if ( $translations && is_array( $translations ) ) {
+
                     foreach ( array_dot( $translations ) as $key => $value ) {
-                        $importedTranslation = $this->importTranslation( $key, $value, $locale, $group, $replace );
+                        $importedTranslation = $this->importTranslation( $key, $value, $locale, $group, $replace, $siteId );
                         $counter             += $importedTranslation ? 1 : 0;
                     }
                 }
@@ -124,7 +125,7 @@ class Manager
         return $counter;
     }
 
-    public function importTranslation( $key, $value, $locale, $group, $replace = false )
+    public function importTranslation( $key, $value, $locale, $group, $replace = false, $siteId )
     {
 
         // process only string values
@@ -133,6 +134,7 @@ class Manager
         }
         $value       = (string) $value;
         $translation = Translation::firstOrNew( [
+            'site_id' => $siteId,
             'locale' => $locale,
             'group'  => $group,
             'key'    => $key,
@@ -208,7 +210,7 @@ class Manager
                     //skip keys which contain namespacing characters, unless they also contain a
                     //space, which makes it JSON.
                     if ( !( str_contains( $key, '::' ) && str_contains( $key, '.' ) )
-                         || str_contains( $key, ' ' ) ) {
+                        || str_contains( $key, ' ' ) ) {
                         $stringKeys[] = $key;
                     }
                 }
@@ -246,12 +248,22 @@ class Manager
         }
     }
 
-    public function exportTranslations( $group = null, $json = false )
+    public function exportTranslations( $group = null, $groupPath = null, $siteId = null,$json = false )
     {
-        $basePath = $this->app[ 'path.lang' ];
+        if (!empty($groupPath))
+        {
+            $basePath = $groupPath;
+        }
+        else
+        {
+            $basePath = $this->app[ 'path.lang' ];
+        }
+
+
 
 
         if ( !is_null( $group ) && !$json ) {
+
             if ( !in_array( $group, $this->config[ 'exclude_groups' ] ) ) {
                 $vendor = false;
                 if ( $group == '*' ) {
@@ -261,16 +273,14 @@ class Manager
                         $vendor = true;
                     }
                 }
-
-                $tree = $this->makeTree( Translation::ofTranslatedGroup( $group )
-                                                    ->orderByGroupKeys( array_get( $this->config, 'sort_keys', false ) )
-                                                    ->get() );
-
+                $tree = $this->makeTree( Translation::ofTranslatedGroup( $group, $siteId)
+                    ->orderByGroupKeys( array_get( $this->config, 'sort_keys', false ) )
+                    ->get() );
+//                dd($tree);
                 foreach ( $tree as $locale => $groups ) {
                     if ( isset( $groups[ $group ] ) ) {
                         $translations = $groups[ $group ];
-                        $path         = $this->app[ 'path.lang' ];
-
+                        $path         = $basePath;
                         $locale_path = $locale . DIRECTORY_SEPARATOR . $group;
                         if ( $vendor ) {
                             $path        = $basePath . '/' . $group . '/' . $locale;
@@ -295,14 +305,14 @@ class Manager
                         $this->files->put( $path, $output );
                     }
                 }
-                Translation::ofTranslatedGroup( $group )->update( [ 'status' => Translation::STATUS_SAVED ] );
+                Translation::ofTranslatedGroup( $group, $siteId )->update( [ 'status' => Translation::STATUS_SAVED ] );
             }
         }
 
         if ( $json ) {
             $tree = $this->makeTree( Translation::ofTranslatedGroup( self::JSON_GROUP )
-                                                ->orderByGroupKeys( array_get( $this->config, 'sort_keys', false ) )
-                                                ->get(), true );
+                ->orderByGroupKeys( array_get( $this->config, 'sort_keys', false ) )
+                ->get(), true );
 
             foreach ( $tree as $locale => $groups ) {
                 if ( isset( $groups[ self::JSON_GROUP ] ) ) {

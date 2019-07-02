@@ -14,7 +14,7 @@ class ExportCommand extends Command
      *
      * @var string
      */
-    protected $name = 'translations:export {group}';
+    protected $signature = 'translations:export {group} {path?} {siteId?} {--json}';
 
     /**
      * The console command description.
@@ -38,27 +38,31 @@ class ExportCommand extends Command
     public function handle()
     {
         $group = $this->argument('group');
+        $path = $this->argument('path');
+        $siteId = $this->argument('siteId');
         $json = $this->option('json');
 
-        if (is_null($group) && !$json) {
-            $this->warn('You must either specify a group argument or export as --json');
+//        dd($siteId);
+//        if (is_null($group) && !$json) {
+//            $this->warn('You must either specify a group argument or export as --json');
+//
+//            return;
+//        }
+//
+//        if (!is_null($group) && $json) {
+//            $this->warn('You cannot use both group argument and --json option at the same time');
+//
+//            return;
+//        }
 
-            return;
-        }
-
-        if (!is_null($group) && $json) {
-            $this->warn('You cannot use both group argument and --json option at the same time');
-
-            return;
-        }
-
-        $this->manager->exportTranslations($group, $json);
+        $this->manager->exportTranslations($group,$path,$siteId, $json);
 
         if (!is_null($group)) {
             $this->info('Done writing language files for '.(($group == '*') ? 'ALL groups' : $group.' group'));
-        } elseif ($json) {
-            $this->info('Done writing JSON language files for translation strings');
         }
+//        elseif ($json) {
+//            $this->info('Done writing JSON language files for translation strings');
+//        }
     }
 
     /**

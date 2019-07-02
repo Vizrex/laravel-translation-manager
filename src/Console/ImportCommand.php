@@ -13,7 +13,7 @@ class ImportCommand extends Command
      *
      * @var string
      */
-    protected $name = 'translations:import';
+    protected $signature = 'translations:import {path?} {siteId?}';
 
     /**
      * The console command description.
@@ -27,8 +27,8 @@ class ImportCommand extends Command
 
     public function __construct(Manager $manager)
     {
-        $this->manager = $manager;
         parent::__construct();
+        $this->manager = $manager;
     }
 
     /**
@@ -36,8 +36,22 @@ class ImportCommand extends Command
      */
     public function handle()
     {
-        $replace = $this->option('replace');
-        $counter = $this->manager->importTranslations($replace);
+//        $replace = $this->option('replace');
+        $replace = false;
+        $path = $this->argument('path');
+        $siteId = $this->argument('siteId');
+
+        if (!empty($path) && !empty($siteId))
+        {
+            $counter = $this->manager->importTranslations($replace,$path, $siteId);
+        }
+        else
+        {
+            $counter = $this->manager->importTranslations($replace);
+        }
+
+
+
         $this->info('Done importing, processed '.$counter.' items!');
     }
 
